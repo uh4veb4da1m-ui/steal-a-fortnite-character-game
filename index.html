@@ -1,0 +1,330 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Steal a Fortnite Character</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#101326;color:white;font:15px Arial,sans-serif}
+header{padding:15px;background:#211a43;display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+h1{margin:0;font-size:22px;color:#ffe45e}
+#stats{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+main{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:12px;padding:12px}
+#world{height:430px;position:relative;background:#161d39;border-radius:14px;overflow:hidden}
+canvas{display:block}
+#overlay{position:absolute;top:10px;left:10px;right:10px;pointer-events:none}
+.panel{background:#1b1d36;border:1px solid #37385d;border-radius:12px;padding:14px;margin-bottom:12px}
+h2{font-size:17px;margin:0 0 12px}
+button{border:0;border-radius:8px;background:#7561ed;color:white;font-weight:bold;padding:10px;cursor:pointer}
+button:hover{filter:brightness(1.15)}
+button:disabled{opacity:.4;cursor:not-allowed}
+.actions{display:flex;gap:6px;flex-wrap:wrap}
+.actions button{flex:1}
+#feed{height:100px;overflow:auto;font-size:12px;color:#c5c7e6}
+#collection{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:5px;max-height:250px;overflow:auto}
+.slot{background:#292b48;border-radius:6px;padding:6px 2px;text-align:center;font-size:10px;min-height:42px}
+.small{color:#b9bbd7;font-size:12px}
+#characters{display:flex;gap:8px;overflow:auto;padding:4px 0 12px}
+.person{min-width:110px;border-radius:10px;padding:10px;background:#292545;border:1px solid #514778}
+.person button{width:100%;margin-top:7px;font-size:12px}
+.train{display:inline-block;padding:5px 8px;border-radius:7px;background:#343452;margin:2px;font-size:12px}
+#message{color:#ffe45e;min-height:18px;font-size:12px}
+@media(max-width:760px){main{grid-template-columns:1fr}#world{height:350px}#collection{grid-template-columns:repeat(6,minmax(0,1fr))}}
+</style>
+</head>
+<body>
+<header>
+<h1>🎮 STEAL A FORTNITE CHARACTER</h1>
+<div id="stats">
+<span>🪙 <b id="coins">500</b></span>
+<span>⭐ Rebirth <b id="rebirth">0</b></span>
+<span>📦 <b id="owned">0</b>/300</span>
+</div>
+</header>
+<main>
+<section>
+<div id="world">
+<div id="overlay">
+<b>YOUR BASE 🏠</b>
+<div class="small">Move: WASD or arrow keys · Walk to characters</div>
+<div id="message"></div>
+</div>
+</div>
+<div class="panel">
+<h2>🚂 Train station</h2>
+<div id="trains"></div>
+<p class="small">Every train gives a chance at its mutation. The Infinity Train is the rarest!</p>
+</div>
+<div class="panel">
+<h2>🛒 Character conveyor</h2>
+<div id="characters"></div>
+</div>
+<div class="panel">
+<h2>🎒 Your 300-slot collection</h2>
+<div id="collection"></div>
+</div>
+</section>
+<aside>
+<div class="panel">
+<h2>⚔️ Actions</h2>
+<div class="actions">
+<button id="collect">Collect income</button>
+<button id="protect">🛡️ Protect base</button>
+</div>
+<p id="shield" class="small">Shield: inactive</p>
+<div class="actions">
+<button id="steal">🥷 Steal from rival</button>
+<button id="rebirthBtn">♻️ Rebirth</button>
+</div>
+<p class="small">Stealing costs coins. The rival has a chance to catch you!</p>
+</div>
+<div class="panel">
+<h2>🏆 Rarity guide</h2>
+<div class="small">
+Common · Uncommon · Rare · Epic · Legendary · Mythic · Secret · Divine
+</div>
+<hr style="border-color:#393956">
+<div class="small">Mutations multiply character income. Collect more powerful characters to earn faster.</div>
+</div>
+<div class="panel">
+<h2>📜 Game log</h2>
+<div id="feed"></div>
+</div>
+</aside>
+</main>
+<script type="module">
+import * as THREE from
+'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
+
+const $=id=>document.getElementById(id);
+const rarity=[
+{name:'Common',n:60,cost:100,income:2,color:0xb8c0cc},
+{name:'Uncommon',n:55,cost:250,income:5,color:0x55dd85},
+{name:'Rare',n:50,cost:600,income:12,color:0x4ba5ff},
+{name:'Epic',n:45,cost:1500,income:30,color:0xb47aff},
+{name:'Legendary',n:35,cost:4000,income:80,color:0xffb43c},
+{name:'Mythic',n:25,cost:12000,income:200,color:0xff5578},
+{name:'Secret',n:20,cost:50000,income:750,color:0x36f0eb},
+{name:'Divine',n:10,cost:200000,income:2500,color:0xffe45e}
+];
+const names=[
+'Jonesy','Peely','Fishstick','Midas','Meowscles','Skye','Drift',
+'Raven','Cuddle Team Leader','Brite Bomber','Lynx','Omega','The Reaper',
+'Ragnarok','Ice King','Black Knight','Sparkle Specialist','Renegade Raider',
+'Guff','Mecha Team Leader','Kit','Jules','Mancake','Agent Peely',
+'Fade','Kado Thorne','Hope','Valeria','Oscar','Nisha','Montague',
+'Peter Griffin','Solid Snake','Psycho Bandit','Lara Croft','Master Chief',
+'Spider-Man','Iron Man','Storm','Wolverine','Deadpool','Gwenpool',
+'Batman','Harley Quinn','Wonder Woman','Darth Vader','The Mandalorian',
+'Boba Fett','Ahsoka Tano','Loki','Thanos','Captain America',
+'Black Widow','Doctor Doom','Ghost Rider','Moon Knight','Hulk',
+'Goku','Vegeta','Naruto','Sasuke','Kakashi','Ichigo','Jinx',
+'Vi','Geralt','Eminem','Marshmello','Travis Scott','Ariana Grande'
+];
+const trains=[
+{name:'🎩 Hat',mult:1.5,chance:.35,cost:100},
+{name:'⛏️ Digging',mult:2,chance:.28,cost:250},
+{name:'💰 Gold',mult:3,chance:.20,cost:500},
+{name:'🌈 Rainbow',mult:5,chance:.12,cost:1500},
+{name:'💎 Crystal',mult:8,chance:.07,cost:4000},
+{name:'🚂 Infinity',mult:20,chance:.025,cost:15000}
+];
+let coins=500,rebirth=0,shieldUntil=0,owned=[],incomeBank=0;
+let trainMult=1,playerPos={x:0,z:4},objects=[];
+const catalog=Array.from({length:300},(_,i)=>{
+const r=rarity.findIndex((_,j)=>i<rarity.slice(0,j+1).reduce((s,x)=>s+x.n,0));
+const tier=rarity[r];
+return {id:i,name:names[i%names.length]+(i>=names.length?' '+(Math.floor(i/names.length)+1):''),
+rarity:tier.name,cost:tier.cost,income:tier.income,color:tier.color,mutation:'Normal',mult:1};
+});
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x8dd8ff);
+scene.fog=new THREE.Fog(0x8dd8ff,25,65);
+const camera=new THREE.PerspectiveCamera(60,1,.1,100);
+camera.position.set(0,11,17);
+camera.lookAt(0,0,0);
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled=true;
+renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+$('world').prepend(renderer.domElement);
+renderer.domElement.style.position='absolute';
+renderer.domElement.style.inset='0';
+renderer.domElement.style.width='100%';
+renderer.domElement.style.height='100%';
+scene.add(new THREE.HemisphereLight(0xffffff,0x465078,2));
+const sun=new THREE.DirectionalLight(0xffffff,3);
+sun.position.set(-6,12,8);sun.castShadow=true;scene.add(sun);
+function block(w,h,d,color,x,y,z){
+const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),
+new THREE.MeshStandardMaterial({color,roughness:.7}));
+m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;
+scene.add(m);return m;
+}
+block(50,.4,50,0x5bba76,0,-.3,0);
+for(let x=-24;x<=24;x+=3)block(.045,.02,48,0x499a64,x,-.08,0);
+for(let z=-24;z<=24;z+=3)block(48,.02,.045,0x499a64,0,-.08,z);
+block(9,.4,7,0x6e5bdd,-7,.1,3);
+block(9,.4,7,0x424d86,7,.1,3);
+block(6,.4,9,0x53576d,0,.1,-9);
+block(50,.4,.4,0xffdc5c,0,.15,-24);
+function person(x,z,color,scale=1){
+const g=new THREE.Group();
+const mat=new THREE.MeshStandardMaterial({color,roughness:.6});
+const torso=new THREE.Mesh(new THREE.BoxGeometry(.65*scale,.85*scale,.4*scale),mat);
+torso.position.y=1.05*scale;g.add(torso);
+const head=new THREE.Mesh(new THREE.SphereGeometry(.29*scale,16,12),mat);
+head.position.y=1.72*scale;g.add(head);
+for(const side of [-1,1]){
+const leg=new THREE.Mesh(new THREE.BoxGeometry(.22*scale,.55*scale,.25*scale),mat);
+leg.position.set(side*.18*scale,.38*scale,0);g.add(leg);
+const arm=new THREE.Mesh(new THREE.BoxGeometry(.19*scale,.65*scale,.22*scale),mat);
+arm.position.set(side*.43*scale,1.12*scale,0);g.add(arm);
+}
+g.position.set(x,0,z);scene.add(g);return g;
+}
+const avatar=person(0,4,0x39e4ff,1.1);
+person(-7,2,0x9571ff,1);
+person(7,2,0xff8c50,1);
+for(let i=0;i<14;i++){
+const x=-20+i*3;
+block(.12,.15,2,0x555d81,x,.1,-24);
+block(1.4,.1,.15,0x8d9dc4,x,.2,-24);
+}
+function resize(){
+const el=$('world');
+const w=el.clientWidth,h=el.clientHeight;
+renderer.setSize(w,h,false);camera.aspect=w/h;camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe($('world'));resize();
+const keys={};
+window.addEventListener('keydown',e=>{keys[e.key.toLowerCase()]=true});
+window.addEventListener('keyup',e=>{keys[e.key.toLowerCase()]=false});
+function say(t){$('message').textContent=t;log(t)}
+function log(t){const p=document.createElement('div');p.textContent='› '+t;$('feed').prepend(p)}
+function money(n){return Math.floor(n).toLocaleString()}
+function updateStats(){
+$('coins').textContent=money(coins);
+$('rebirth').textContent=rebirth;
+$('owned').textContent=owned.length;
+$('shield').textContent=Date.now()<shieldUntil?
+'🛡️ Protected for '+Math.ceil((shieldUntil-Date.now())/1000)+'s':'Shield: inactive';
+}
+function makeCard(c){
+const el=document.createElement('div');el.className='person';
+el.innerHTML='<b>'+c.name+'</b><p class="small">'+c.rarity+'</p><p>'+money(c.cost)+' coins</p><button>Buy</button>';
+el.querySelector('button').onclick=()=>buy(c);
+return el;
+}
+function renderConveyor(){
+$('characters').replaceChildren();
+catalog.filter(c=>!owned.some(o=>o.id===c.id)).slice(0,18).forEach(c=>$('characters').append(makeCard(c)));
+}
+function renderCollection(){
+$('collection').replaceChildren();
+for(let i=0;i<300;i++){
+const c=owned[i],el=document.createElement('div');el.className='slot';
+el.style.borderBottom='2px solid '+(c?'#'+c.color.toString(16).padStart(6,'0'):' #444');
+el.textContent=c?c.name:'🔒 '+(i+1);
+el.title=c?c.name+' · '+c.mutation+' · '+c.income*c.mult+' coins/sec':'Empty slot';
+$('collection').append(el);
+}
+}
+function buy(c){
+if(owned.length>=300)return say('Your collection is full!');
+if(owned.some(o=>o.id===c.id))return say('You already own this character!');
+if(coins<c.cost)return say('Not enough coins!');
+coins-=c.cost;
+owned.push({...c});
+say('You bought '+c.name+'!');
+renderAll();
+}
+function renderTrains(){
+$('trains').replaceChildren();
+trains.forEach(t=>{
+const b=document.createElement('button');b.className='train';
+b.textContent=t.name+' · '+t.cost;
+b.onclick=()=>{
+if(coins<t.cost)return say('Not enough coins for this train!');
+coins-=t.cost;
+const roll=Math.random();
+let c;
+if(roll<t.chance){
+const pool=catalog.filter(x=>!owned.some(o=>o.id===x.id));
+if(!pool.length)return say('All characters collected!');
+c={...pool[Math.floor(Math.random()*pool.length)]};
+c.mutation=t.name.replace(/^.{2,3}\s/,'');
+c.mult=t.mult;
+owned.push(c);
+say('🚂 '+t.name+' discovered '+c.name+'! Income x'+t.mult);
+}else{
+coins+=Math.floor(t.cost*.25);
+say(t.name+' rolled past! You found a few coins.');
+}
+renderAll();
+};
+$('trains').append(b);
+});
+}
+function renderAll(){updateStats();renderConveyor();renderCollection()}
+$('collect').onclick=()=>{
+const amount=owned.reduce((s,c)=>s+c.income*c.mult,0)*(1+rebirth*.5);
+coins+=Math.max(1,Math.floor(amount));
+say('Collected '+money(amount)+' coins!');
+renderAll();
+};
+$('protect').onclick=()=>{
+if(coins<100)return say('You need 100 coins to protect your base!');
+coins-=100;shieldUntil=Date.now()+30000;
+say('🛡️ Base protected for 30 seconds!');
+renderAll();
+};
+$('steal').onclick=()=>{
+if(Date.now()<shieldUntil)return say('Your own base is protected; go raid the rival!');
+if(coins<150)return say('You need 150 coins to attempt a steal!');
+coins-=150;
+if(Math.random()<.65){
+const pool=catalog.filter(c=>!owned.some(o=>o.id===c.id));
+if(!pool.length)return say('Your collection is full!');
+const c={...pool[Math.floor(Math.random()*pool.length)]};
+c.cost=Math.ceil(c.cost*.65);
+owned.push(c);
+say('🥷 Successful raid! You stole '+c.name+'!');
+}else{
+say('🚨 The rival caught you! The raid failed.');
+}
+renderAll();
+};
+$('rebirthBtn').onclick=()=>{
+const need=100000*(rebirth+1);
+if(coins<need)return say('You need '+money(need)+' coins to rebirth!');
+if(owned.length<10)return say('Collect at least 10 characters first!');
+rebirth++;coins=500;incomeBank=0;
+say('♻️ Rebirth '+rebirth+'! Permanent income bonus increased!');
+renderAll();
+};
+function animate(){
+requestAnimationFrame(animate);
+const speed=.12;
+if(keys.w||keys.arrowup)playerPos.z-=speed;
+if(keys.s||keys.arrowdown)playerPos.z+=speed;
+if(keys.a||keys.arrowleft)playerPos.x-=speed;
+if(keys.d||keys.arrowright)playerPos.x+=speed;
+playerPos.x=Math.max(-22,Math.min(22,playerPos.x));
+playerPos.z=Math.max(-22,Math.min(22,playerPos.z));
+avatar.position.x+=(playerPos.x-avatar.position.x)*.2;
+avatar.position.z+=(playerPos.z-avatar.position.z)*.2;
+camera.position.x+=(playerPos.x*.25-camera.position.x)*.025;
+camera.lookAt(playerPos.x*.12,0,0);
+renderer.render(scene,camera);
+}
+renderTrains();
+renderAll();
+log('Welcome! Collect characters and build your fortune.');
+log('Tip: Buy cheaper characters first to grow your income.');
+animate();
+</script>
+</body>
+</html>
